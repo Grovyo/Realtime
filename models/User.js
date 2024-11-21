@@ -12,9 +12,11 @@ const userSchema = new mongoose.Schema(
     hashed_password: {
       type: String,
     },
+    otp: {
+      code: { type: String },
+      time: { type: Date },
+    },
     passw: { type: String },
-    otp: { type: String },
-    salt: String,
     governmentid: { type: String },
     role: {
       type: String,
@@ -58,9 +60,9 @@ const userSchema = new mongoose.Schema(
       type: [String],
       default: [],
     },
-    notifications: {
-      type: [String],
-    },
+
+    dm: { type: Number, default: 0 },
+    tagging: { type: Number, default: 0 },
     location: { type: String },
     isverified: {
       type: Boolean,
@@ -75,6 +77,7 @@ const userSchema = new mongoose.Schema(
       enum: ["Unblock", "Block"],
       reason: { type: String },
     },
+    guide: { type: Boolean, default: false },
     desc: { type: String, maxLength: 500 },
     shortdesc: { type: String, maxLength: 150 },
     communityjoined: [{ type: ObjectId, ref: "Community", default: [] }],
@@ -89,16 +92,12 @@ const userSchema = new mongoose.Schema(
     gender: {
       type: String,
     },
-    // CHANGED BY AD
+
     age: {
       type: Number,
     },
     gr: { type: Number, default: 0 },
-    // gender: {
-    //   type: String,
-    //   enum: ["MALE", "FEMALE"]
-    // },
-    location: { type: String },
+
     ipaddress: { type: String },
     currentlogin: { type: String },
     popularity: { type: String, default: "0%" },
@@ -113,14 +112,14 @@ const userSchema = new mongoose.Schema(
     paymenthistory: [{ type: ObjectId, ref: "Payment" }],
     moneyearned: { type: Number, default: 0 },
     earningtype: [{ how: { type: String }, when: { type: Number } }],
-    secretcode: { type: String },
+
     revenue: { type: Number, default: 0 },
     cart: [{ type: ObjectId, ref: "Cart" }],
     cartproducts: [{ type: "String" }],
     web: { type: String },
     prositeid: { type: ObjectId, ref: "Prosite" },
     lastlogin: { type: [String] },
-    location: { type: [String] },
+    // location: { type: [String] },
     device: { type: [String] },
     accounttype: { type: String },
     organization: { type: String },
@@ -188,47 +187,73 @@ const userSchema = new mongoose.Schema(
         id: { type: String },
       },
     ],
+    uniquecustomers: [
+      {
+        id: { type: String },
+      },
+    ],
     collectionss: [
       { type: mongoose.Schema.Types.ObjectId, ref: "Collectionss" },
     ],
     muted: [{ type: ObjectId, ref: "Conversation" }],
-    address: {
+    selectedaddress: {
+      isselected: { type: Boolean, default: false },
+      type: { type: String },
+      houseno: { type: String },
       streetaddress: { type: String },
-      state: { type: String },
       city: { type: String },
       landmark: { type: String },
-      pincode: { type: Number },
-      country: { type: String },
+      pincode: { type: String },
       coordinates: {
         latitude: { type: Number },
         longitude: { type: Number },
-        altitude: { type: Number },
-        provider: { type: String },
-        accuracy: { type: Number },
-        bearing: { type: Number },
       },
+      name: { type: String },
+      number: { type: String, maxlength: 12 },
+      id: { type: String },
     },
+    address: [
+      {
+        isselected: { type: Boolean, default: false },
+        type: { type: String, required: true },
+        houseno: { type: String },
+        streetaddress: { type: String },
+        city: { type: String },
+        landmark: { type: String },
+        pincode: { type: String },
+        coordinates: {
+          latitude: { type: Number },
+          longitude: { type: Number },
+        },
+        name: { type: String },
+        number: { type: String, maxlength: 12 },
+        id: { type: String },
+      },
+    ],
     prosite_template: { type: String },
-    storeAddress: {
-      buildingno: { type: String },
-      city: { type: String },
-      state: { type: String },
-      postal: { type: Number },
-      landmark: { type: String },
-      gst: { type: Number },
-      businesscategory: { type: String },
-      documenttype: { type: String },
-      documentfile: { type: String },
-      coordinates: {
-        latitude: { type: Number },
-        longitude: { type: Number },
-        altitude: { type: Number },
-        provider: { type: String },
-        accuracy: { type: Number },
-        bearing: { type: Number },
+    storeAddress: [
+      {
+        buildingno: { type: String },
+        streetaddress: { type: String },
+        city: { type: String },
+        state: { type: String },
+        postal: { type: Number },
+        landmark: { type: String },
+        gst: { type: Number },
+        businesscategory: { type: String },
+        documenttype: { type: String },
+        documentfile: { type: String },
+        coordinates: {
+          latitude: { type: Number },
+          longitude: { type: Number },
+          altitude: { type: Number },
+          provider: { type: String },
+          accuracy: { type: Number },
+          bearing: { type: Number },
+        },
       },
-    },
-
+    ],
+    recentInterests: [{ type: String }],
     mesIds: [{ type: Number }],
     deliverypartners: [
       {
@@ -252,19 +277,31 @@ const userSchema = new mongoose.Schema(
     topicearning: { type: Number, default: 0 },
     storeearning: { type: Number, default: 0 },
     adsearning: { type: Number, default: 0 },
+    prositeweb_template: {
+      type: String,
+    },
+    prositemob_template: {
+      type: String,
+    },
+    isbankverified: { type: Boolean, default: false },
     storeStats: [
       {
         Dates: { type: String },
         Sales: { type: Number },
       },
     ],
+    useDefaultProsite: { type: Boolean, default: false },
+    recentPrositeSearches: [{ type: ObjectId, ref: "User", default: [] }],
+    recentCommunitySearches: [
+      { type: ObjectId, ref: "Community", default: [] },
+    ],
+    recentPosts: [{ type: ObjectId, ref: "Posts", default: [] }],
+    activeinterests: [{ type: String }],
   },
   { timestamps: false, strict: false }
 );
 
 userSchema.index({ fullname: "text" });
-
-//virtualfields
 
 userSchema
   .virtual("password")
@@ -292,7 +329,7 @@ userSchema.methods = {
         .update(password)
         .digest("hex");
     } catch (err) {
-      return "";
+      return err;
     }
   },
   makeSalt: function () {
