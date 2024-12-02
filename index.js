@@ -23,12 +23,7 @@ const fs = require("fs");
 const path = require("path");
 const PrositeAnalytics = require("./models/PrositeAnalytics");
 const moment = require("moment");
-const {
-  RtcTokenBuilder,
-  RtmTokenBuilder,
-  RtcRole,
-  RtmRole,
-} = require("agora-access-token");
+const { RtcTokenBuilder, RtcRole } = require("agora-access-token");
 require("dotenv").config();
 
 //middleware
@@ -944,7 +939,6 @@ io.on("connection", (socket) => {
     } catch (error) {
       console.log(error);
     }
-  
   });
   //end
 
@@ -988,7 +982,7 @@ io.on("connection", (socket) => {
       let token = generateRtcToken({ convId, id, isHost });
       io.to(to).emit("gen:final", token);
     } catch (error) {
-      console.log(error)
+      console.log(error);
     }
   });
 
@@ -1167,9 +1161,216 @@ io.on("connection", (socket) => {
 
       // Save changes
       await prositeAnalytics.save();
+
+      const prositeAnalyticsToSend = await PrositeAnalytics.findOne({
+        userId,
+      });
+
+      const locationforProsite = Object.entries(
+        prositeAnalyticsToSend?.location || {}
+      ).map(([state, value]) => ({ state, value }));
+
+      const locProsite = locationforProsite
+        .sort((a, b) => b?.value - a?.value)
+        .slice(0, 5);
+
+      const totalValue = locationforProsite.reduce(
+        (sum, item) => sum + item?.value,
+        0
+      );
+
+      const actuallocProsite = locProsite.map((d) => ({
+        state: d?.state,
+        value: totalValue > 0 ? Math.round((d.value / totalValue) * 100) : 0,
+      }));
+
+      const obtainAgeProsite = Object.entries(
+        prositeAnalyticsToSend?.demographics?.age || {}
+      ).map(([age, value]) => ({ age, value }));
+      const totalAgeValue = obtainAgeProsite.reduce(
+        (sum, item) => sum + item?.value,
+        0
+      );
+
+      const sendAgeProsite = obtainAgeProsite.map((d) => ({
+        age: d.age,
+        percent:
+          totalAgeValue > 0 ? Math.round((d.value / totalAgeValue) * 100) : 0,
+      }));
+
+      const obtainGenderProsite = Object.entries(
+        prositeAnalyticsToSend?.demographics?.gender || {}
+      ).map(([gender, value]) => ({ gender, value }));
+      const totalGenderValue = obtainGenderProsite.reduce(
+        (sum, item) => sum + item?.value,
+        0
+      );
+
+      const sendGenderProsite = obtainGenderProsite.map((d) => ({
+        gender: d?.gender,
+        percent:
+          totalGenderValue > 0
+            ? Math.round((d?.value / totalGenderValue) * 100)
+            : 0,
+      }));
+
+      const totalVisitors = prositeAnalyticsToSend?.totalVisitors?.reduce(
+        (sum, item) => sum + item?.visitors,
+        0
+      );
+
+      const prositeData = {
+        totalVisitors,
+        visitors: prositeAnalyticsToSend?.totalVisitors,
+        totalTimeSpent:
+          prositeAnalyticsToSend?.totalTimeSpent /
+          prositeAnalyticsToSend?.numberOfSessions,
+        location: actuallocProsite,
+        age: sendAgeProsite,
+        gender: sendGenderProsite,
+      };
+
+      socket.emit(`prositeData:${userId}`, prositeData);
     } catch (error) {
       console.log(error);
     }
+  });
+
+  socket.on("increase-member-count", async ({ comid, creator }) => {
+    try {
+      const startOfDay = new Date();
+      startOfDay.setHours(0, 0, 0, 0); // Set to the start of the day
+
+      const endOfDay = new Date();
+      endOfDay.setHours(23, 59, 59, 999); // Set to the end of the day
+
+      const analytics = await Analytics.findOne({
+        id: comid,
+        creation: { $gte: startOfDay, $lte: endOfDay },
+      });
+
+      analytics.Y1 = analytics.Y1 + 1;
+
+      const savedAnalytics = await analytics.save();
+
+      const data = {
+        id: savedAnalytics?._id,
+        X: savedAnalytics?.date,
+        Y1: savedAnalytics?.Y1,
+        Y2: savedAnalytics?.Y2,
+        Y3: savedAnalytics?.Y3,
+        creation: savedAnalytics?.creation,
+        activemembers: savedAnalytics?.activemembers.length || 0,
+        newmembers: savedAnalytics?.newmembers.length || 0,
+        paidmembers: savedAnalytics?.paidmembers.length || 0,
+        newvisitor: savedAnalytics?.newvisitor.length || 0,
+        returningvisitor: savedAnalytics?.returningvisitor.length || 0,
+      };
+
+      socket.emit(`inc-member-count-${creator}`, { data, comid });
+    } catch (e) {
+      console.log(e);
+    }
+  });
+
+  socket.on("decrease-member-count", async ({ comid, creator }) => {
+    try {
+      const startOfDay = new Date();
+      startOfDay.setHours(0, 0, 0, 0); // Set to the start of the day
+
+      const endOfDay = new Date();
+      endOfDay.setHours(23, 59, 59, 999); // Set to the end of the day
+
+      const analytics = await Analytics.findOne({
+        id: comid,
+        creation: { $gte: startOfDay, $lte: endOfDay },
+      });
+
+      analytics.Y1 = analytics.Y1 - 1;
+      analytics.Y3 = analytics.Y3 - 1;
+      const savedAnalytics = await analytics.save();
+
+      const data = {
+        id: savedAnalytics?._id,
+        X: savedAnalytics?.date,
+        Y1: savedAnalytics?.Y1,
+        Y2: savedAnalytics?.Y2,
+        Y3: savedAnalytics?.Y3,
+        creation: savedAnalytics?.creation,
+        activemembers: savedAnalytics?.activemembers.length || 0,
+        newmembers: savedAnalytics?.newmembers.length || 0,
+        paidmembers: savedAnalytics?.paidmembers.length || 0,
+        newvisitor: savedAnalytics?.newvisitor.length || 0,
+        returningvisitor: savedAnalytics?.returningvisitor.length || 0,
+      };
+
+      socket.emit(`dec-member-count-${creator}`, { data, comid });
+    } catch (e) {
+      console.log(e);
+    }
+  });
+
+  socket.on("increase-visitor-count", async ({ comid, creator }) => {
+    try {
+      const startOfDay = new Date();
+      startOfDay.setHours(0, 0, 0, 0);
+
+      const endOfDay = new Date();
+      endOfDay.setHours(23, 59, 59, 999);
+
+      const analytics = await Analytics.findOne({
+        id: comid,
+        creation: { $gte: startOfDay, $lte: endOfDay },
+      });
+
+      analytics.Y2 = analytics.Y2 + 1;
+
+      const savedAnalytics = await analytics.save();
+
+      const data = {
+        id: savedAnalytics?._id,
+        X: savedAnalytics?.date,
+        Y1: savedAnalytics?.Y1,
+        Y2: savedAnalytics?.Y2,
+        Y3: savedAnalytics?.Y3,
+        creation: savedAnalytics?.creation,
+        activemembers: savedAnalytics?.activemembers.length || 0,
+        newmembers: savedAnalytics?.newmembers.length || 0,
+        paidmembers: savedAnalytics?.paidmembers.length || 0,
+        newvisitor: savedAnalytics?.newvisitor.length || 0,
+        returningvisitor: savedAnalytics?.returningvisitor.length || 0,
+      };
+
+      socket.emit(`inc-visitor-count-${creator}`, { data, comid });
+    } catch (error) {
+      console.log(error);
+    }
+  });
+
+  socket.on("inc-sales", async ({ userid }) => {
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const endOfDay = new Date();
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const startOfDayString = formatDateToString(startOfDay);
+    const endOfDayString = formatDateToString(endOfDay);
+
+    // Query the database for dates in string format
+    const storeAnalytics = await Analytics.findOne({
+      id: userid,
+      date: { $gte: startOfDayString, $lte: endOfDayString },
+    }).sort({ date: -1 });
+
+    storeAnalytics.Sales = storeAnalytics.Sales + 1;
+    const savedAnalytics = await storeAnalytics.save();
+    const data = {
+      id: savedAnalytics?._id,
+      Dates: savedAnalytics?.date,
+      Sales: savedAnalytics?.Sales,
+    };
+    socket.emit(`inc-sales-${userid}`, { userid,data });
   });
 
   socket.on("disconnect", () => {
@@ -1182,6 +1383,13 @@ io.on("connection", (socket) => {
     }
   });
 });
+
+const formatDateToString = (date) => {
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const year = date.getFullYear();
+  return `${day}/${month}/${year}`;
+};
 
 function getRandomSeconds() {
   return Math.floor(Math.random() * 60) + 1;
